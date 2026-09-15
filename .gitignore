@@ -39,3 +39,7 @@ output_traces/
 # Sistema operacional
 .DS_Store
 Thumbs.db
+
+# Documentação pessoal de estudo e apresentação
+GUIA_TEORICO_E_TECNICO.md
+DOCUMENTACAO_*.md
