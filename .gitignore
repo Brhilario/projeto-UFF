@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Ambientes virtuais
+.venv/
+venv/
+ENV/
+env/
+
+# Caches e testes
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Dados sísmicos pesados (arquivos SEG-Y de GBs que excedem o limite de 100MB do GitHub)
+*.sgy
+*.segy
+
+# Arquivos de traços processados HDF5 (gerados em tempo de execução)
+output_traces/
+*.h5
+*.hdf5
+
+# Banco de dados local SQLite
+*.db
+*.sqlite3
+
+# IDEs e editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
