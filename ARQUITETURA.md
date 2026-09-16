@@ -9,9 +9,10 @@
 | Leitura SEG-Y | **segyio** (modo streaming, `segyio.open`) | Padrão da indústria, permite leitura lazy de trace headers e traços individuais sem carregar o volume inteiro |
 | Filtro | **scipy.signal** (`butter` + `sosfiltfilt` ou `sosfilt`) | `sos` (second-order sections) é numericamente mais estável que `ba` para ordens mais altas |
 | Persistência de traços | **HDF5 via h5py** | Escrita incremental nativa (`resizable dataset` com `maxshape`), chunking configurável, amplamente usado em geofísica. Zarr seria equivalente e melhor para paralelismo/cloud, mas HDF5 tem tooling mais maduro para uso local single-file — justificativa a detalhar no README |
-| Persistência de metadados | **SQLite + SQLAlchemy** (com Alembic p/ migrations) | Exigido; SQLite é suficiente para app desktop single-user |
+| Persistência de metadados | **SQLite + SQLAlchemy** (scoped_session + modo WAL) | Sessões thread-local isoladas entre worker e UI; SQLite em modo WAL (Write-Ahead Logging) permitindo leituras simultâneas da interface sem bloquear a escrita do worker |
 | Processamento paralelo (opcional) | **multiprocessing.Pool** | Paraleliza filtragem entre chunks de traços, mantendo streaming (cada worker processa e devolve um chunk, nunca o volume todo) |
 | Testes | **pytest + pytest-qt** | Unitários de negócio + 1 E2E simulando fluxo real |
+
 
 ## 2. Estrutura de pastas
 
@@ -107,16 +108,19 @@ finished_at: datetime | None
 ```
 
 ### `JobStateMachine`
-Transições válidas (refletindo o diagrama):
+Transições válidas (refletindo o diagrama e a Trilha de Criatividade - Retomada/Resume):
 ```
 CREATED   → RUNNING
 RUNNING   → COMPLETED
 RUNNING   → FAILED
 RUNNING   → CANCELLED
+CANCELLED → RUNNING   (Retomada de job interrompido)
+FAILED    → RUNNING   (Retomada de job após falha)
+RUNNING   → RUNNING   (Recuperação segura de sessão anterior)
 ```
-Qualquer outra transição levanta `InvalidTransitionError`. Isso é testado isoladamente em `test_job_state_machine.py` — é a parte mais fácil de "ganhar pontos" com poucos testes bem escritos.
+Qualquer outra transição levanta `InvalidTransitionError`. Testado em `test_job_state_machine.py`.
 
-## 4. Fluxo de threading (UI responsiva)
+## 4. Fluxo de threading e Concorrência (UI responsiva)
 
 ```
 [MainWindow]
@@ -134,6 +138,14 @@ Qualquer outra transição levanta `InvalidTransitionError`. Isso é testado iso
 ```
 
 Nenhum acesso a widget acontece dentro do worker — só emite sinais. A UI só lê/escreve widgets no thread principal, via slots conectados por `Qt.QueuedConnection` (padrão quando threads diferentes).
+
+### 4.1 Concorrência no Banco de Dados (Thread-Safety)
+Durante a execução de um job, o worker em background grava o progresso no SQLite enquanto o usuário pode navegar livremente pelas abas (ex: consultar o histórico). Para garantir concorrência estrita e evitar colisões:
+1. **`scoped_session` (SQLAlchemy)**: A thread principal da UI e a thread secundária do worker operam cada uma com sua própria sessão de banco de dados isolada (thread-local).
+2. **SQLite em Modo WAL (`PRAGMA journal_mode=WAL`)**: Leituras simultâneas nunca bloqueiam escritas e escritas nunca bloqueiam leituras.
+3. **Escrita em Lote**: A persistência do status do job no banco é agrupada a cada 5 chunks e no chunk final, reduzindo a contenção em 80% enquanto a barra de progresso visual continua atualizando a cada chunk.
+4. **Blindagem de Slots UI**: Métodos de atualização de aba são encapsulados com tratamento de exceção seguro, impedindo qualquer encerramento abrupto da janela.
+
 
 ## 5. Streaming: como garantir memória O(1) nos traços
 

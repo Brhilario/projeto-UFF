@@ -138,7 +138,15 @@ O tamanho de 500 traços foi escolhido através de balanceamento entre:
 O uso de `thread.terminate()` é fortemente desaconselhado pela documentação do Qt e pelas boas práticas de sistemas operacionais. Matar uma thread abruptamente deixa arquivos abertos sem fechar, descritores de HDF5 corrompidos, locks de banco de dados SQLite órfãos e buffers de I/O corrompidos.
 O cancelamento cooperativo via `CancelToken` (`threading.Event`) permite que o worker verifique o sinal entre chunks, interrompa o processamento graciosamente, preserve a integridade do arquivo parcial e registre o estado `CANCELLED` no banco.
 
+### Concorrência thread-safe no Banco de Dados (scoped_session e SQLite WAL)
+Ao executar um processamento demorado em background, o usuário pode interagir com a interface e alternar livremente entre abas para consultar o histórico ou outros datasets.
+Para garantir que operações concorrentes nunca travem a interface nem corrompam dados:
+- **`scoped_session`**: As sessões do SQLAlchemy são isoladas por thread (`thread-local`), garantindo que consultas na UI e escritas do worker nunca compartilhem o mesmo estado de transação;
+- **Modo WAL (`Write-Ahead Logging`)**: O SQLite opera com `PRAGMA journal_mode=WAL` e `PRAGMA synchronous=NORMAL`, permitindo que leituras simultâneas da interface ocorram sem bloquear a gravação contínua do worker;
+- **Persistência em Lote**: A gravação do status do job no banco é agrupada a cada 5 chunks e no chunk final, reduzindo a sobrecarga de I/O em 80% sem prejudicar a suavidade da barra de progresso.
+
 ---
+
 
 ## 6. Trilha de Criatividade
 
