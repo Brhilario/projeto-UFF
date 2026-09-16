@@ -28,6 +28,8 @@ output_traces/
 
 # Banco de dados local SQLite
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
 
 # IDEs e editores

@@ -97,34 +97,39 @@ class HistoryView(QWidget):
         self._dataset_filter.blockSignals(False)
 
     def _refresh_table(self) -> None:
-        status = self._status_filter.currentData()
-        dataset_id = self._dataset_filter.currentData()
-        jobs = self._filter_service.list_jobs(dataset_id=dataset_id, status=status)
+        try:
+            status = self._status_filter.currentData()
+            dataset_id = self._dataset_filter.currentData()
+            jobs = self._filter_service.list_jobs(dataset_id=dataset_id, status=status)
 
-        self._table.setRowCount(len(jobs))
-        for row, job in enumerate(jobs):
-            # Obtém nome legível do dataset
-            ds_name = job.dataset_id[:8]
+            # Pre-fetch dos datasets para evitar consultas repetitivas em loop
+            datasets_by_id: dict[str, str] = {}
             if self._dataset_repo is not None:
-                ds = self._dataset_repo.get(job.dataset_id)
-                if ds:
-                    ds_name = ds.name
+                for ds in self._dataset_repo.list():
+                    datasets_by_id[ds.id] = ds.name
 
-            values = [
-                job.id[:8],
-                ds_name,
-                job.status.value,
-                f"{job.cutoff_hz:.1f}",
-                str(job.order),
-                f"{job.progress_pct:.1f}%",
-            ]
-            for col, value in enumerate(values):
-                item = QTableWidgetItem(value)
-                self._table.setItem(row, col, item)
+            self._table.setRowCount(len(jobs))
+            for row, job in enumerate(jobs):
+                ds_name = datasets_by_id.get(job.dataset_id, job.dataset_id[:8])
 
-            # Botões de Ação na última coluna
-            action_widget = self._build_action_widget(job)
-            self._table.setCellWidget(row, len(_COLUMNS) - 1, action_widget)
+                values = [
+                    job.id[:8],
+                    ds_name,
+                    job.status.value,
+                    f"{job.cutoff_hz:.1f}",
+                    str(job.order),
+                    f"{job.progress_pct:.1f}%",
+                ]
+                for col, value in enumerate(values):
+                    item = QTableWidgetItem(value)
+                    self._table.setItem(row, col, item)
+
+                # Botões de Ação na última coluna
+                action_widget = self._build_action_widget(job)
+                self._table.setCellWidget(row, len(_COLUMNS) - 1, action_widget)
+        except Exception as exc:
+            import logging
+            logging.error(f"[HistoryView] Erro ao atualizar tabela: {exc}")
 
     def _build_action_widget(self, job: Job) -> QWidget:
         widget = QWidget()
@@ -140,7 +145,7 @@ class HistoryView(QWidget):
 
         # Botão "Retomar" se foi interrompido/cancelado ou falhou com chunks parciais
         can_resume = (
-            job.status in (JobStatus.CANCELLED, JobStatus.FAILED)
+            job.status in (JobStatus.CANCELLED, JobStatus.FAILED, JobStatus.RUNNING)
             and job.last_completed_chunk_idx is not None
         )
         if can_resume:
@@ -151,6 +156,7 @@ class HistoryView(QWidget):
             btn_rollback = QPushButton("Descartar")
             btn_rollback.clicked.connect(lambda _, j=job: self._rollback_partial(j))
             layout.addWidget(btn_rollback)
+
 
         widget.setLayout(layout)
         return widget

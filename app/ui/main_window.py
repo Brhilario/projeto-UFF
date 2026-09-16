@@ -62,8 +62,13 @@ class MainWindow(QMainWindow):
         self._tabs.setCurrentWidget(self.execution_view)
 
     def _on_tab_changed(self, index: int) -> None:
-        widget = self.centralWidget().widget(index)
-        if widget is self.filter_config_view:
-            self.filter_config_view.refresh_datasets()
-        elif widget is self.history_view:
-            self.history_view.refresh()
+        try:
+            widget = self.centralWidget().widget(index)
+            if widget is self.filter_config_view:
+                self.filter_config_view.refresh_datasets()
+            elif widget is self.history_view:
+                self.history_view.refresh()
+        except Exception as exc:
+            import logging
+            logging.error(f"[MainWindow] Erro seguro ao atualizar aba {index}: {exc}")
+

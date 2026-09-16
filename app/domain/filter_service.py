@@ -112,8 +112,10 @@ class FilterService:
 
                 job.last_completed_chunk_idx = chunk_idx
                 job.progress_pct = ((chunk_idx + 1) / total_chunks) * 100
-                self._jobs.save(job)
+                if chunk_idx % 5 == 0 or chunk_idx == total_chunks - 1:
+                    self._jobs.save(job)
                 progress_callback(job.progress_pct)
+
 
             job.output_path = self._trace_store.finalize(job.id)
             transition(job, JobStatus.COMPLETED)

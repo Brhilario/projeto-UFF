@@ -11,7 +11,7 @@ from app.domain.models import Job, JobStatus
 # e suporte à retomada de jobs interrompidos (Trilha de Criatividade).
 _ALLOWED_TRANSITIONS: dict[JobStatus, set[JobStatus]] = {
     JobStatus.CREATED: {JobStatus.RUNNING},
-    JobStatus.RUNNING: {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED},
+    JobStatus.RUNNING: {JobStatus.RUNNING, JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED},
     JobStatus.COMPLETED: set(),
     JobStatus.FAILED: {JobStatus.RUNNING},      # Permite retomar após falha
     JobStatus.CANCELLED: {JobStatus.RUNNING},   # Permite retomar após cancelamento
